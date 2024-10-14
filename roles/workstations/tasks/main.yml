@@ -1,0 +1,85 @@
+---
+- name: Install necessary packages for Nagios
+  apt:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - apache2
+    - php
+    - libapache2-mod-php
+    - libgd-tools
+    - libgd-dev
+    - make
+    - autoconf
+    - gcc
+    - libc6
+    - libgd-dev
+    - openssl
+    - libssl-dev
+  when: ansible_distribution == "Ubuntu"
+
+- name: Install necessary packages for Nagios (CentOS)
+  yum:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - httpd
+    - php
+    - gcc
+    - glibc
+    - glibc-common
+    - gd
+    - gd-devel
+  when: ansible_distribution == "CentOS"
+
+- name: Create directory for Nagios
+  file:
+    path: /tmp/nagios-4.4.6
+    state: directory
+
+- name: Download Nagios Core
+  get_url:
+    url: "https://go.nagios.org/get-core/4-4-13"
+    dest: /tmp/nagios.tar.gz
+
+- name: Extract Nagios Core
+  ansible.builtin.unarchive:
+    src: /tmp/nagios.tar.gz
+    dest: /tmp/nagios-4.4.6
+    remote_src: yes
+  become: yes
+
+
+- name: Compile and install Nagios Core
+  shell: |
+    cd /tmp/nagios-4.4.6
+    ./configure --with-command-group=nagcmd
+    make install
+    make install-init
+    make install-config
+    make install-commandmode
+    make install-webconf
+  args:
+    chdir: /tmp/nagios-4.4.6
+    creates: /usr/local/nagios/bin/nagios
+  become: yes
+
+- name: Create Nagios User
+  user:
+    name: nagios
+    shell: /bin/false
+  when: ansible_distribution == "Ubuntu"
+
+- name: Create Nagios User (CentOS)
+  user:
+    name: nagios
+    shell: /sbin/nologin
+  when: ansible_distribution == "CentOS"
+
+- name: Enable and start Nagios service
+  service:
+    name:
+      apache2 restart
+      nagios start
+    state: started
+    enabled: yes
